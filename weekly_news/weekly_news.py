@@ -43,7 +43,6 @@ def summarize_with_gemini(news_items, search_keywords):
         raise SystemExit("환경 변수 GEMINI_API_KEY를 설정해 주세요.")
 
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-1.5-flash")
 
     keywords_text = ", ".join(search_keywords) if isinstance(search_keywords, list) else search_keywords
 
@@ -61,8 +60,18 @@ def summarize_with_gemini(news_items, search_keywords):
 
 {text_block}"""
 
-    response = model.generate_content(prompt)
-    return response.text if response and response.text else "요약 생성 실패"
+    # 사용 가능한 모델 순서대로 시도 (환경에 따라 지원 모델이 다름)
+    for model_name in ("gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"):
+        try:
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(prompt)
+            if response and response.text:
+                return response.text
+        except Exception as e:
+            if "404" in str(e) or "not found" in str(e).lower():
+                continue
+            raise
+    return "요약 생성 실패"
 
 
 def send_to_slack(message, webhook_url=None):
