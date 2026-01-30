@@ -5,6 +5,7 @@
 """
 
 import os
+import time
 from urllib.parse import quote_plus
 
 import feedparser
@@ -60,17 +61,25 @@ def summarize_with_gemini(news_items, search_keywords):
 
 {text_block}"""
 
-    # 사용 가능한 모델 순서대로 시도 (환경에 따라 지원 모델이 다름)
-    for model_name in ("gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"):
-        try:
-            model = genai.GenerativeModel(model_name)
-            response = model.generate_content(prompt)
-            if response and response.text:
-                return response.text
-        except Exception as e:
-            if "404" in str(e) or "not found" in str(e).lower():
-                continue
-            raise
+    # gemini-pro 먼저 시도 (무료 한도가 2.0-flash보다 넉넉한 경우 많음), 429 시 대기 후 재시도
+    for model_name in ("gemini-pro", "gemini-2.0-flash", "gemini-1.5-flash"):
+        for attempt in range(2):  # 최대 2번 시도 (429 시 한 번 더)
+            try:
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content(prompt)
+                if response and response.text:
+                    return response.text
+            except Exception as e:
+                err_str = str(e).lower()
+                is_429 = "429" in str(e) or "quota" in err_str or "resourceexhausted" in err_str
+                is_404 = "404" in str(e) or "not found" in err_str
+                # 429 한도 초과 → 25초 대기 후 한 번 더 시도
+                if is_429 and attempt == 0:
+                    time.sleep(25)
+                    continue
+                if is_404 or is_429:
+                    break  # 다음 모델로
+                raise
     return "요약 생성 실패"
 
 
