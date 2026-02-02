@@ -1,0 +1,31 @@
+# 매주 월요일 09:00 KST (00:00 UTC) 실행
+# 경쟁사 주간 뉴스 수집 → LLM 요약 → Slack 발송
+name: Weekly Competitor News
+
+on:
+  schedule:
+    # KST 09:00 = UTC 00:00 (월요일)
+    - cron: "0 0 * * 1"
+  workflow_dispatch: # 수동 실행 허용
+
+jobs:
+  run-newsbot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run newsbot
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_API_URL: ${{ secrets.LLM_API_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: python main.py
